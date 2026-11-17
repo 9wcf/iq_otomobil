@@ -20,7 +20,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.q8iq.otomobil   # عدّله إذا كان الـ Bundle ID مختلف
+        bundle_identifier: com.iqotomobil.iqOtomobil
       vars:
         APP_ID: 0000000000                      # App ID من App Store Connect (الأرقام بالرابط)
       xcode: latest
