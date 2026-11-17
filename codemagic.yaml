@@ -100,15 +100,23 @@ workflows:
 
           valid_key() { openssl pkey -in "$1" -noout >/dev/null 2>&1; }
 
-          # 1) تحويل \n الحرفية إلى أسطر حقيقية
-          printf '%s' "$RAW" | sed 's/\\n/\n/g' | tr -d '\r' > "$KEYF"
-          if ! valid_key "$KEYF"; then
-            # 2) يمكن القيمة مشفرة base64
-            printf '%s' "$RAW" | tr -d ' \t\r\n' | python3 -c "import base64,sys;sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))" > "$KEYF" 2>/dev/null || true
+          SRC=""
+          case "$RAW" in
+            @file:*) SRC="${RAW#@file:}" ;;
+          esac
+
+          if [ -n "$SRC" ] && [ -f "$SRC" ]; then
+            # 1) القيمة مسار (@file:) لملف المفتاح اللي جهزه Codemagic
+            echo "Using the key file provided by Codemagic"
+            cp "$SRC" "$KEYF"
           fi
           if ! valid_key "$KEYF"; then
-            # 3) يمكن القيمة مسار لملف المفتاح
-            if [ -f "$RAW" ]; then cp "$RAW" "$KEYF"; fi
+            # 2) القيمة محتوى المفتاح (مع تحويل \n الحرفية)
+            printf '%s' "$RAW" | sed 's/\\n/\n/g' | tr -d '\r' > "$KEYF"
+          fi
+          if ! valid_key "$KEYF"; then
+            # 3) يمكن القيمة مشفرة base64
+            printf '%s' "$RAW" | tr -d ' \t\r\n' | python3 -c "import base64,sys;sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))" > "$KEYF" 2>/dev/null || true
           fi
           if ! valid_key "$KEYF"; then
             echo "ERROR: cannot build a valid API key file."
