@@ -18,6 +18,8 @@ workflows:
     instance_type: mac_mini_m1
     max_build_duration: 60
     environment:
+      groups:
+        - ios_signing
       vars:
         BUNDLE_ID: iq.iqtomobil.customer
       xcode: latest
@@ -38,14 +40,12 @@ workflows:
           set -e
           keychain initialize
           CERT_KEY="$CM_BUILD_DIR/cert_key.pem"
-          if [ -n "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
-            printf '%s' "$CERTIFICATE_PRIVATE_KEY" > "$CERT_KEY"
-          else
-            openssl genrsa -out "$CERT_KEY" 2048
-            echo "=== SAVE_CERT_KEY_START ==="
-            base64 -i "$CERT_KEY"
-            echo "=== SAVE_CERT_KEY_END ==="
+          if [ -z "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
+            echo "ERROR: CERTIFICATE_PRIVATE_KEY is not set."
+            echo "Add it as a secure variable in the ios_signing group (base64 RSA key from a previous build log)."
+            exit 1
           fi
+          printf '%s' "$CERTIFICATE_PRIVATE_KEY" > "$CERT_KEY"
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create --certificate-key=@file:"$CERT_KEY"
           keychain add-certificates
           xcode-project use-profiles
