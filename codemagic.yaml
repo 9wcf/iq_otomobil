@@ -35,18 +35,6 @@ workflows:
       - name: تحميل اعتماديات Flutter
         script: |
           flutter packages pub get
-      - name: تشخيص App Store Connect (مؤقت)
-        script: |
-          echo "Issuer set: $([ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] && echo yes || echo no)"
-          echo "Key ID set: $([ -n "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ] && echo yes || echo no)"
-          echo "=== apps list (strict match $BUNDLE_ID) ==="
-          app-store-connect apps list --bundle-id-identifier "$BUNDLE_ID" --strict-match-identifier || true
-          echo "=== all apps visible to this API key ==="
-          app-store-connect apps list || true
-          echo "=== altool providers ==="
-          xcrun altool --list-providers \
-            --apiKey "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" || true
       - name: إنشاء الشهادة والبروفايل تلقائياً
         script: |
           set -e
@@ -95,41 +83,56 @@ workflows:
           KEYF="$HOME/private_keys/AuthKey_${KEY_ID}.p8"
           mkdir -p "$HOME/private_keys"
 
-          echo "RAW length: ${#RAW}"
-          echo "RAW head: ${RAW:0:27}"
-
           valid_key() { openssl pkey -in "$1" -noout >/dev/null 2>&1; }
 
           SRC=""
           case "$RAW" in
             @file:*) SRC="${RAW#@file:}" ;;
           esac
-
-          if [ -n "$SRC" ] && [ -f "$SRC" ]; then
-            # 1) القيمة مسار (@file:) لملف المفتاح اللي جهزه Codemagic
-            echo "Using the key file provided by Codemagic"
+          if [ -n "$SRC" ] && [ -f "$SRC" ] && [ "$SRC" != "$KEYF" ]; then
             cp "$SRC" "$KEYF"
           fi
           if ! valid_key "$KEYF"; then
-            # 2) القيمة محتوى المفتاح (مع تحويل \n الحرفية)
-            printf '%s' "$RAW" | sed 's/\\n/\n/g' | tr -d '\r' > "$KEYF"
-          fi
-          if ! valid_key "$KEYF"; then
-            # 3) يمكن القيمة مشفرة base64
-            printf '%s' "$RAW" | tr -d ' \t\r\n' | python3 -c "import base64,sys;sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))" > "$KEYF" 2>/dev/null || true
-          fi
-          if ! valid_key "$KEYF"; then
             echo "ERROR: cannot build a valid API key file."
-            echo "RAW tail: ${RAW: -40}"
             exit 1
           fi
           echo "API key file is valid"
           chmod 600 "$KEYF"
 
-          # altool في Xcode 26 عنده خلل بمعالجة الـ providers، نستخدم المسار القديم
-          xcrun altool --upload-app -f "$IPA" -t ios \
-            --apiKey "$KEY_ID" \
-            --apiIssuer "$ISSUER_ID" \
-            --use-old-altool
+          echo "=== applications visible to this API key ==="
+          app-store-connect apps list --json || true
+          echo "=== strict match for $BUNDLE_ID ==="
+          app-store-connect apps list --bundle-id-identifier "$BUNDLE_ID" --strict-match-identifier --json || true
+          echo "=== installed Xcodes ==="
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+
+          upload() {
+            local tool="$1"; shift
+            echo "--- upload via $tool $*"
+            "$tool" --upload-app -f "$IPA" -t ios --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID" "$@"
+          }
+
+          # altool في Xcode 26 عنده خلل بمعالجة الـ providers
+          if upload "$(xcrun --find altool)" --use-old-altool; then
+            echo "UPLOAD SUCCEEDED"; exit 0
+          fi
+
+          OLD=""
+          for app in /Applications/Xcode-16*.app /Applications/Xcode_16*.app /Applications/Xcode-15*.app; do
+            if [ -x "$app/Contents/SharedFrameworks/ContentDelivery.framework/Resources/altool" ]; then
+              OLD="$app/Contents/SharedFrameworks/ContentDelivery.framework/Resources/altool"
+              break
+            fi
+          done
+          if [ -n "$OLD" ]; then
+            if upload "$OLD"; then
+              echo "UPLOAD SUCCEEDED"; exit 0
+            fi
+          else
+            echo "No older Xcode altool installed"
+          fi
+
+          echo "All upload attempts failed"
+          exit 1
     artifacts:
       - build/ios/ipa/*.ipa
