@@ -18,11 +18,8 @@ workflows:
     instance_type: mac_mini_m1
     max_build_duration: 60
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.iqotomobil.iqOtomobil
       vars:
-        APP_ID: 0000000000                      # App ID من App Store Connect (الأرقام بالرابط)
+        BUNDLE_ID: com.iqotomobil.iqOtomobil
       xcode: latest
       cocoapods: default
     triggering:
@@ -36,11 +33,17 @@ workflows:
       - name: تحميل اعتماديات Flutter
         script: |
           flutter packages pub get
+      - name: إنشاء الشهادة والبروفايل تلقائياً
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: بناء iOS (Release)
         script: |
           flutter build ipa --release \
-            --build-number=$(( $(git rev-list --count HEAD) + 5 )) \
-            --export-options-plist=/Users/builder/export_options.plist
+            --build-number=$(($(date +%s) / 60)) \
+            --export-options-plist=$HOME/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
