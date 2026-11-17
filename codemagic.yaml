@@ -19,7 +19,7 @@ workflows:
     max_build_duration: 60
     environment:
       vars:
-        BUNDLE_ID: com.q8iq.iq_otomobil
+        BUNDLE_ID: iq.iqtomobil.customer
       xcode: latest
       cocoapods: default
     triggering:
