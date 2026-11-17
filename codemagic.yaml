@@ -35,6 +35,18 @@ workflows:
       - name: تحميل اعتماديات Flutter
         script: |
           flutter packages pub get
+      - name: تشخيص App Store Connect (مؤقت)
+        script: |
+          echo "Issuer set: $([ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] && echo yes || echo no)"
+          echo "Key ID set: $([ -n "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ] && echo yes || echo no)"
+          echo "=== apps list (strict match $BUNDLE_ID) ==="
+          app-store-connect apps list --bundle-id-identifier "$BUNDLE_ID" --strict-match-identifier || true
+          echo "=== all apps visible to this API key ==="
+          app-store-connect apps list || true
+          echo "=== altool providers ==="
+          xcrun altool --list-providers \
+            --apiKey "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID" || true
       - name: إنشاء الشهادة والبروفايل تلقائياً
         script: |
           set -e
