@@ -35,8 +35,18 @@ workflows:
           flutter packages pub get
       - name: إنشاء الشهادة والبروفايل تلقائياً
         script: |
+          set -e
           keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          CERT_KEY="$CM_BUILD_DIR/cert_key.pem"
+          if [ -n "${CERTIFICATE_PRIVATE_KEY:-}" ]; then
+            printf '%s' "$CERTIFICATE_PRIVATE_KEY" > "$CERT_KEY"
+          else
+            openssl genrsa -out "$CERT_KEY" 2048
+            echo "=== SAVE_CERT_KEY_START ==="
+            base64 -i "$CERT_KEY"
+            echo "=== SAVE_CERT_KEY_END ==="
+          fi
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create --certificate-key=@file:"$CERT_KEY"
           keychain add-certificates
           xcode-project use-profiles
       - name: بناء iOS (Release)
