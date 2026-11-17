@@ -21,7 +21,7 @@ workflows:
       groups:
         - ios_signing
       vars:
-        BUNDLE_ID: iq.iqtomobil.customer
+        BUNDLE_ID: iq.iqotomobil.customer
       xcode: latest
       cocoapods: default
     triggering:
