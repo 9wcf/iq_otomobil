@@ -343,11 +343,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         .select('role')
                         .eq('id', SupabaseService.client.auth.currentUser!.id)
                         .maybeSingle()
-                    : Future.value(null),
+                        .then((data) => data as Map<String, dynamic>?)
+                    : Future<Map<String, dynamic>?>.value(null),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting)
                     return const SizedBox.shrink();
-                  final role = snapshot.data?['role'] as String?;
+                  final data = snapshot.data;
+                  final role = data?['role'] as String?;
                   final isLoggedIn =
                       SupabaseService.client.auth.currentSession != null;
                   return Row(

@@ -12,34 +12,6 @@ class PlatesScreen extends ConsumerWidget {
     final platesAsync = ref.watch(approvedPlatesProvider);
     final theme = Theme.of(context);
 
-    // بيانات وهمية للتجربة إذا كانت قاعدة البيانات فارغة
-    final dummyPlates = [
-      {
-        'plate_number': '12345 بغداد',
-        'plate_type': 'vip',
-        'governorate': 'بغداد',
-        'price': 5000.0,
-        'description': 'لوحة مميزة جداً',
-        'seller_phone': '+9647701234567'
-      },
-      {
-        'plate_number': '9876 البصرة',
-        'plate_type': 'normal',
-        'governorate': 'البصرة',
-        'price': 1200.0,
-        'description': 'حالة ممتازة',
-        'seller_phone': '+9647809876543'
-      },
-      {
-        'plate_number': '555 أربيل',
-        'plate_type': 'special',
-        'governorate': 'أربيل',
-        'price': 3500.0,
-        'description': 'رقم نادر',
-        'seller_phone': '+9647501112233'
-      },
-    ];
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('لوحات السيارات'),
@@ -54,13 +26,34 @@ class PlatesScreen extends ConsumerWidget {
       body: platesAsync.when(
         // ✅ تصحيح: استخدام أسماء المعاملات (named parameters)
         data: (plates) {
-          final displayList =
-              (plates == null || plates.isEmpty) ? dummyPlates : plates;
+          if (plates.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.directions_car_outlined,
+                        size: 72, color: Colors.blue[200]),
+                    const SizedBox(height: 16),
+                    Text('لا توجد لوحات معروضة حالياً',
+                        style: theme.textTheme.titleMedium,
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    Text(
+                        'كن أول من يعرض لوحته — اضغط على زر البيع في الأعلى',
+                        style: TextStyle(color: Colors.grey[600]),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: displayList.length,
-            itemBuilder: (ctx, i) => _PlateCard(plate: displayList[i])
+            itemCount: plates.length,
+            itemBuilder: (ctx, i) => _PlateCard(plate: plates[i])
                 .animate()
                 .fadeIn(delay: (i * 100).ms)
                 .slideY(begin: 0.1, end: 0),

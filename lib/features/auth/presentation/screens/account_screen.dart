@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:iq_otomobil/core/config/app_config.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 import 'package:iq_otomobil/features/auth/presentation/providers/auth_provider.dart';
 
@@ -200,17 +202,46 @@ class _LoggedInView extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // الإعدادات
+            // الدعم والمساعدة
+            Card(
+              color: const Color(0xFF1E293B),
+              child: ListTile(
+                  leading: Icon(Icons.support_agent, color: Colors.blue[300]),
+                  title: const Text('الدعم والمساعدة',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('تواصل معنا واطلب الدعم',
+                      style: TextStyle(color: Colors.grey)),
+                  trailing: Icon(Icons.arrow_forward_ios,
+                      size: 16, color: Colors.blue[300]),
+                  onTap: () => _openUrl(AppConfig.supportUrl)),
+            ),
+            const SizedBox(height: 12),
+
+            // سياسة الخصوصية
+            Card(
+              color: const Color(0xFF1E293B),
+              child: ListTile(
+                  leading: Icon(Icons.privacy_tip_outlined,
+                      color: Colors.green[300]),
+                  title: const Text('سياسة الخصوصية',
+                      style: TextStyle(color: Colors.white)),
+                  trailing: Icon(Icons.arrow_forward_ios,
+                      size: 16, color: Colors.green[300]),
+                  onTap: () => _openUrl(AppConfig.privacyPolicyUrl)),
+            ),
+            const SizedBox(height: 12),
+
+            // حذف الحساب (مطلوب من آبل)
             Card(
               color: const Color(0xFF1E293B),
               child: ListTile(
                   leading:
-                      Icon(Icons.settings_outlined, color: Colors.grey[300]),
-                  title: const Text('الإعدادات',
-                      style: TextStyle(color: Colors.white)),
-                  trailing: Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.grey[300]),
-                  onTap: () {}),
+                      const Icon(Icons.delete_forever, color: Colors.redAccent),
+                  title: const Text('حذف الحساب',
+                      style: TextStyle(color: Colors.redAccent)),
+                  subtitle: const Text('حذف حسابك وبياناتك نهائياً',
+                      style: TextStyle(color: Colors.grey)),
+                  onTap: () => _confirmDeleteAccount(context, ref)),
             ),
             const SizedBox(height: 24),
 
@@ -234,5 +265,61 @@ class _LoggedInView extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر فتح الرابط')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('حذف الحساب نهائياً؟',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+            'سيتم حذف حسابك وجميع بياناتك (الطلبات والتقييمات) نهائياً ولا يمكن التراجع عن هذا الإجراء.',
+            style: TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('حذف نهائي', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      // يستدعي Edge Function في Supabase تحذف المستخدم وبياناته
+      await SupabaseService.client.functions.invoke('delete-account');
+      await ref.read(authActionProvider.notifier).logout();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف حسابك بنجاح')),
+        );
+        context.go('/');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر حذف الحساب: $e')),
+        );
+      }
+    }
   }
 }

@@ -1,0 +1,49 @@
+# Codemagic: بناء iOS ورفعه للـ App Store Connect تلقائياً
+#
+# المتطلبات (تسويها مرة وحدة من موقع Codemagic):
+# 1) Connect to Apple: حمّل مفتاح App Store Connect API (.p8) من
+#    appstoreconnect.apple.com > Users and Access > Integrations > App Store Connect API
+# 2) ربط حساب GitHub (الريبو 9wcf/iq_otomobil)
+# 3) الإعدادات داخل Codemagic > App settings:
+#    - iOS code signing: Automatic (Codemagic ينشئ الشهادة والـ Provisioning تلقائياً)
+#    - App Store Connect publishing: مفعّل مع الإيداع التلقائي
+#
+# بعدها كل push على فرع main يبني ويرفع build جديد لـ TestFlight.
+
+workflows:
+  ios-appstore:
+    name: iOS App Store Release
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.q8iq.otomobil   # عدّله إذا كان الـ Bundle ID مختلف
+      vars:
+        APP_ID: 0000000000                      # App ID من App Store Connect (الأرقام بالرابط)
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    scripts:
+      - name: تحميل اعتماديات Flutter
+        script: |
+          flutter packages pub get
+      - name: بناء iOS (Release)
+        script: |
+          flutter build ipa --release \
+            --build-number=$(( $(git rev-list --count HEAD) + 5 )) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # عندما تريد الإرسال للمراجعة، غيّرها إلى true:
+        submit_to_app_store: false

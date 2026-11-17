@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/services/supabase_service.dart';
 import '../features/orders/presentation/providers/order_provider.dart';
 
 class NotificationBell extends ConsumerWidget {
@@ -20,7 +21,7 @@ class NotificationBell extends ConsumerWidget {
           onPressed: () => _showNotifications(context, ref, userId),
         ),
         notificationsAsync.when(
-          (list) => list.isNotEmpty
+          data: (list) => list.isNotEmpty
               ? Positioned(right: 8, top: 8, child: _Badge(count: list.length))
               : const SizedBox.shrink(),
           loading: () => const SizedBox.shrink(),
@@ -86,7 +87,7 @@ class _NotificationsSheet extends ConsumerWidget {
           SizedBox(
             height: 300,
             child: notificationsAsync.when(
-              (list) => list.isEmpty
+              data: (list) => list.isEmpty
                   ? const Center(child: Text('لا توجد إشعارات جديدة'))
                   : ListView.builder(
                       itemCount: list.length,

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:iq_otomobil/core/config/app_config.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 
 class PlateRepository {
@@ -65,6 +66,6 @@ class PlateRepository {
 
 أرسلت عبر تطبيق IQ OTOMBIL
 ''';
-    return 'https://wa.me/9647701234567?text=${Uri.encodeComponent(message)}';
+    return 'https://wa.me/${AppConfig.ownerWhatsAppNumber}?text=${Uri.encodeComponent(message)}';
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 import 'package:go_router/go_router.dart';
@@ -182,7 +183,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
               Text('📅 ${_formatDate(createdAt)}',
                   style: TextStyle(color: Colors.grey[400], fontSize: 12)),
               TextButton.icon(
-                onPressed: () => _editReview(review['id']),
+                onPressed: () => _editReview(review),
                 icon: const Icon(Icons.edit, size: 16),
                 label: const Text('تعديل', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(foregroundColor: Colors.blue[300]),
@@ -194,11 +195,80 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
     );
   }
 
-  Future<void> _editReview(String reviewId) async {
-    // يمكن إضافة صفحة تعديل التقييم لاحقاً
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('قريباً: تعديل التقييم')),
+  Future<void> _editReview(Map<String, dynamic> review) async {
+    final commentCtrl =
+        TextEditingController(text: review['comment'] as String? ?? '');
+    double rating = (review['rating'] as num).toDouble();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('تعديل التقييم',
+              style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RatingBar.builder(
+                initialRating: rating,
+                minRating: 1,
+                itemCount: 5,
+                itemBuilder: (_, __) =>
+                    const Icon(Icons.star, color: Colors.amber),
+                onRatingUpdate: (r) => setDialogState(() => rating = r),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: commentCtrl,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'اكتب تعليقك...',
+                  hintStyle: TextStyle(color: Colors.grey[600]),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
+              child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
     );
+
+    if (saved != true) return;
+
+    try {
+      await SupabaseService.client
+          .from('reviews')
+          .update({'rating': rating, 'comment': commentCtrl.text})
+          .eq('id', review['id']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث التقييم بنجاح')),
+        );
+        _loadMyReviews();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في التحديث: $e')),
+        );
+      }
+    }
   }
 
   String _formatDate(DateTime date) {
