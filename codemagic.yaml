@@ -84,11 +84,19 @@ workflows:
           flutter build ipa --release \
             --build-number=$(($(date +%s) / 60)) \
             --export-options-plist=$HOME/export_options.plist
+      - name: رفع إلى TestFlight
+        script: |
+          set -e
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          echo "Uploading: $IPA"
+          KEY_ID="$APP_STORE_CONNECT_KEY_IDENTIFIER"
+          ISSUER_ID="$APP_STORE_CONNECT_ISSUER_ID"
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${KEY_ID}.p8"
+          # altool في Xcode 26 عنده خلل بمعالجة الـ providers، نستخدم المسار القديم
+          xcrun altool --upload-app -f "$IPA" -t ios \
+            --apiKey "$KEY_ID" \
+            --apiIssuer "$ISSUER_ID" \
+            --use-old-altool
     artifacts:
       - build/ios/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        # عندما تريد الإرسال للمراجعة، غيّرها إلى true:
-        submit_to_app_store: false
