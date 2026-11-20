@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/services/supabase_service.dart';
+import 'package:iq_otomobil/core/services/supabase_service.dart';
 import '../features/orders/presentation/providers/order_provider.dart';
 
 class NotificationBell extends ConsumerWidget {
@@ -9,7 +8,7 @@ class NotificationBell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = SupabaseService.client.auth.currentUser?.id;
+    final userId = SupabaseService.currentUserId;
     if (userId == null) return const SizedBox.shrink();
 
     final notificationsAsync = ref.watch(unreadNotificationsProvider(userId));
@@ -35,7 +34,7 @@ class NotificationBell extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _NotificationsSheet(userId: userId, ref: ref),
+      builder: (_) => _NotificationsSheet(userId: userId),
     );
   }
 }
@@ -58,8 +57,7 @@ class _Badge extends StatelessWidget {
 
 class _NotificationsSheet extends ConsumerWidget {
   final String userId;
-  final WidgetRef ref;
-  const _NotificationsSheet({required this.userId, required this.ref});
+  const _NotificationsSheet({required this.userId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -92,15 +90,16 @@ class _NotificationsSheet extends ConsumerWidget {
                   : ListView.builder(
                       itemCount: list.length,
                       itemBuilder: (ctx, i) => ListTile(
-                        title: Text(list[i]['title']),
-                        subtitle: Text(list[i]['body']),
+                        title: Text(list[i]['title'] as String? ?? ''),
+                        subtitle: Text(list[i]['message'] as String? ?? ''),
                         trailing: IconButton(
                           icon: const Icon(Icons.check_circle_outline),
                           onPressed: () {
                             ref
                                 .read(orderActionProvider.notifier)
-                                .markNotificationRead(list[i]['id']);
-                            ref.refresh(unreadNotificationsProvider(userId));
+                                .markNotificationRead(
+                                    list[i]['id'] as String);
+                            ref.invalidate(unreadNotificationsProvider(userId));
                           },
                         ),
                       ),

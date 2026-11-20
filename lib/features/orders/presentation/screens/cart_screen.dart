@@ -3,7 +3,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/cart_provider.dart';
+import 'package:iq_otomobil/features/cart/presentation/providers/cart_provider.dart';
+import 'package:iq_otomobil/features/catalog/data/product_display_utils.dart';
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -22,7 +23,7 @@ class CartScreen extends ConsumerWidget {
         ),
       ]),
       body: itemsAsync.when(
-        (items) => items.isEmpty
+        data: (items) => items.isEmpty
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -106,7 +107,7 @@ class _CartItemTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(product['model'] ?? 'غير محدد',
+                  Text(productDisplayTitle(product),
                       style: theme.textTheme.titleSmall
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),

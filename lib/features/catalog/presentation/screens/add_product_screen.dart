@@ -120,7 +120,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   }
 
   Widget _DropdownField(
-      String label, FutureProvider provider, void Function(String?) onChanged) {
+    String label,
+    AutoDisposeFutureProvider<List<Map<String, dynamic>>> provider,
+    void Function(String?) onChanged,
+  ) {
     return Consumer(
       builder: (context, ref, _) => ref.watch(provider).when(
             data: (items) => DropdownButtonFormField<String>(
@@ -133,14 +136,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   labelText: label, border: const OutlineInputBorder()),
               validator: (v) => v == null ? 'مطلوب' : null,
             ),
-            loading: () => const DropdownButtonFormField(
-                decoration: InputDecoration(
-                    labelText: 'جاري التحميل...',
-                    border: OutlineInputBorder())),
-            error: (_, __) => const DropdownButtonFormField(
-                decoration: InputDecoration(
-                    labelText: 'خطأ في التحميل', border: OutlineInputBorder()),
-                items: []),
+            loading: () => DropdownButtonFormField<String>(
+              items: const [],
+              onChanged: null,
+              decoration: const InputDecoration(
+                labelText: 'جاري التحميل...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            error: (_, __) => DropdownButtonFormField<String>(
+              items: const [],
+              onChanged: null,
+              decoration: const InputDecoration(
+                labelText: 'خطأ في التحميل',
+                border: OutlineInputBorder(),
+              ),
+            ),
           ),
     );
   }

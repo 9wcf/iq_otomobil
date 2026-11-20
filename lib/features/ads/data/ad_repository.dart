@@ -1,8 +1,13 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+
 import 'package:iq_otomobil/core/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdRepository {
   final _client = SupabaseService.client;
+
+  /// وحيد موضع البنر في الواجهة (قيمة متوافقة مع الصفوف القديمة في قاعدة البيانات).
+  static const String kHomeBannerPosition = 'home_top';
 
   /// جلب الإعلانات النشطة - طريقة بسيطة ومتوافقة مع جميع الإصدارات
   Future<List<Map<String, dynamic>>> getActiveAds({String? position}) async {
@@ -85,12 +90,76 @@ class AdRepository {
       'position': position,
       'end_date': endDate?.toIso8601String(),
       'is_active': true,
-      'created_by': _client.auth.currentUser?.id,
+      'created_by': SupabaseService.currentUserId,
     });
+  }
+
+  Future<List<Map<String, dynamic>>> getAllAds({String? position}) async {
+    var query = _client.from('advertisements').select();
+    if (position != null) {
+      query = query.eq('position', position);
+    }
+    final results = await query.order('created_at', ascending: false);
+    return results;
+  }
+
+  Future<int> getBannerIntervalSeconds() async {
+    try {
+      final row = await _client
+          .from('ad_settings')
+          .select('interval_seconds')
+          .eq('position', kHomeBannerPosition)
+          .maybeSingle();
+      final v = (row?['interval_seconds'] as int?) ?? 5;
+      return v <= 0 ? 5 : v;
+    } on PostgrestException catch (e) {
+      // إذا لم يُطبّق Migration جدول ad_settings بعد، لا نكسر واجهة المستخدم.
+      if (e.code == 'PGRST205') return 5;
+      rethrow;
+    } catch (_) {
+      return 5;
+    }
+  }
+
+  Future<void> setBannerIntervalSeconds(int seconds) async {
+    try {
+      await _client.from('ad_settings').upsert(
+        {
+          'position': kHomeBannerPosition,
+          'interval_seconds': seconds,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'position',
+      );
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST205') {
+        throw Exception(
+          'جدول ad_settings غير موجود. طبّق ملفات الـ migration في Supabase '
+          '(ابدأ بـ 20260505172000_ad_settings_interval.sql) ثم أعد المحاولة.',
+        );
+      }
+      rethrow;
+    }
   }
 
   /// تحديث حالة الإعلان
   Future<void> updateAdStatus(String adId, bool isActive) => _client
       .from('advertisements')
       .update({'is_active': isActive}).eq('id', adId);
+
+  Future<void> deleteAd(String adId) async {
+    await _client.from('advertisements').delete().eq('id', adId);
+  }
+
+  /// رفع صورة بنر للإعلانات (نستخدم نفس bucket المنتجات لتجنب إعدادات إضافية)
+  Future<String> uploadAdImage(File imageFile, {String folder = 'ads'}) async {
+    final bytes = await imageFile.readAsBytes();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final userId = SupabaseService.currentUserId ?? 'anon';
+    final fileName = 'ad_${userId}_$timestamp.jpg';
+    final filePath = '$folder/$fileName';
+
+    await _client.storage.from('products').uploadBinary(filePath, bytes);
+    return _client.storage.from('products').getPublicUrl(filePath);
+  }
 }

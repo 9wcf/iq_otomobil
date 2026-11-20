@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 
 class OrderRepository {
@@ -10,7 +9,7 @@ class OrderRepository {
     required String phone,
     String? notes,
   }) async {
-    final userId = _client.auth.currentUser!.id;
+    final userId = SupabaseService.currentUserId!;
     final orders = cartItems
         .map((item) => {
               'user_id': userId,

@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "N6S7Z2YLW9.iq.iqotomobil.customer",
+        "paths": ["/product/*"]
+      }
+    ]
+  }
+}

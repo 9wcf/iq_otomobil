@@ -1,0 +1,2 @@
+[functions.product-share]
+verify_jwt = false

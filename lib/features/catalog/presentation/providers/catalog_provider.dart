@@ -5,14 +5,37 @@ import '../../domain/product.dart';
 
 final catalogRepoProvider = Provider((ref) => CatalogRepository());
 
-final brandsProvider = FutureProvider.autoDispose(
-    (ref) => ref.watch(catalogRepoProvider).getBrands());
-
 final categoriesProvider = FutureProvider.autoDispose(
-    (ref) => ref.watch(catalogRepoProvider).getCategories());
+  (ref) {
+    // Prevent refetching on quick route changes.
+    ref.keepAlive();
+    return ref.watch(catalogRepoProvider).getSearchCategoriesFromProducts();
+  },
+);
 
-final productsProvider = FutureProvider.autoDispose(
-    (ref) => ref.watch(catalogRepoProvider).getActiveProducts());
+final brandsProvider = FutureProvider.autoDispose((ref) {
+  // Prevent refetching on quick route changes.
+  ref.keepAlive();
+  final cat = ref.watch(searchCategoryProvider);
+  return ref
+      .watch(catalogRepoProvider)
+      .getSearchBrandsFromProducts(categoryId: cat);
+});
+
+final productsProvider = FutureProvider.autoDispose((ref) {
+  // Prevent refetching when navigating away/back to catalog.
+  ref.keepAlive();
+  return ref.watch(catalogRepoProvider).getActiveProducts();
+});
+
+/// Latest products for home screen with pagination.
+final latestProductsPageProvider = FutureProvider.autoDispose
+    .family<({List<Map<String, dynamic>> items, bool hasNext}), int>(
+  (ref, page) {
+    ref.keepAlive();
+    return ref.watch(catalogRepoProvider).getLatestProductsPageRaw(page: page);
+  },
+);
 
 class ProductUploadNotifier extends StateNotifier<AsyncValue<void>> {
   final CatalogRepository _repo;

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
+import 'package:iq_otomobil/core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
 
 class AddReviewScreen extends StatefulWidget {
@@ -28,9 +28,9 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.background,
         title: const Text('إضافة تقييم', style: TextStyle(color: Colors.white)),
       ),
       body: SingleChildScrollView(
@@ -42,7 +42,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: AppColors.card,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.blue.withOpacity(0.3)),
               ),
@@ -112,7 +112,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
                 hintText: 'شارك تجربتك مع الآخرين...',
                 hintStyle: TextStyle(color: Colors.grey[600]),
                 filled: true,
-                fillColor: const Color(0xFF1E293B),
+                fillColor: AppColors.card,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.blue.withOpacity(0.3)),
@@ -155,7 +155,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
   }
 
   Future<void> _submitReview() async {
-    final user = SupabaseService.client.auth.currentUser;
+    final user = SupabaseService.currentUserInfo;
     if (user == null) return;
 
     setState(() => _isSubmitting = true);

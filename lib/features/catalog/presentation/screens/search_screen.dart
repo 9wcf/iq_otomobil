@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iq_otomobil/features/catalog/presentation/providers/catalog_provider.dart';
 import 'package:iq_otomobil/features/catalog/presentation/screens/catalog_screen.dart';
-import '../domain/product.dart';
+import 'package:iq_otomobil/features/products/data/car_brands_catalog.dart';
+import 'package:iq_otomobil/features/products/presentation/widgets/car_brand_icon.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -95,11 +96,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 childAspectRatio: 0.75,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12),
+            cacheExtent: 800,
             itemCount: products.length,
-            itemBuilder: (ctx, i) => _ProductCard(product: products[i])
-                .animate()
-                .fadeIn(delay: (i * 60).ms)
-                .slideY(begin: 0.1, end: 0),
+            itemBuilder: (ctx, i) {
+              final card = RepaintBoundary(
+                child: CatalogProductCard(product: products[i]),
+              );
+              if (i >= 12) return card;
+              return card
+                  .animate()
+                  .fadeIn(delay: (i * 50).ms)
+                  .slideY(begin: 0.08, end: 0);
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -124,6 +132,7 @@ class _FilterSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final selectedCategory = ref.watch(searchCategoryProvider);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
@@ -147,9 +156,14 @@ class _FilterSheet extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _FilterDropdown('الماركة', brandsProvider, searchBrandProvider),
+          // فلترة على مرحلتين: القسم ثم الماركة (ديناميكي من منتجات التاجر)
+          _FilterDropdown('القسم', categoriesProvider, searchCategoryProvider,
+              onChanged: (_) => ref.read(searchBrandProvider.notifier).state = null),
           const SizedBox(height: 12),
-          _FilterDropdown('القسم', categoriesProvider, searchCategoryProvider),
+          _BrandFilterDropdown(
+            enabled: selectedCategory != null && selectedCategory.isNotEmpty,
+            hintText: 'اختر القسم أولاً',
+          ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             value: ref.watch(searchConditionProvider),
@@ -177,7 +191,10 @@ class _FilterSheet extends ConsumerWidget {
   }
 
   Widget _FilterDropdown(
-      String label, FutureProvider provider, StateProvider<String?> state) {
+    String label,
+    AutoDisposeFutureProvider<List<Map<String, dynamic>>> provider,
+    StateProvider<String?> state,
+    {bool enabled = true, String? hintText, void Function(String?)? onChanged}) {
     return Consumer(
       builder: (ctx, ref, _) => ref.watch(provider).when(
             data: (items) => DropdownButtonFormField<String>(
@@ -186,9 +203,17 @@ class _FilterSheet extends ConsumerWidget {
                   .map((i) => DropdownMenuItem(
                       value: i['id'] as String, child: Text(i['name'])))
                   .toList(),
-              onChanged: (v) => ref.read(state.notifier).state = v,
+              onChanged: enabled
+                  ? (v) {
+                      ref.read(state.notifier).state = v;
+                      onChanged?.call(v);
+                    }
+                  : null,
               decoration: InputDecoration(
-                  labelText: label, border: const OutlineInputBorder()),
+                labelText: label,
+                hintText: enabled ? null : hintText,
+                border: const OutlineInputBorder(),
+              ),
             ),
             loading: () => const SizedBox(
                 height: 60,
@@ -197,6 +222,39 @@ class _FilterSheet extends ConsumerWidget {
             error: (_, __) =>
                 const SizedBox(height: 60, child: Text('خطأ في التحميل')),
           ),
+    );
+  }
+}
+
+class _BrandFilterDropdown extends ConsumerWidget {
+  const _BrandFilterDropdown({
+    this.enabled = true,
+    this.hintText,
+  });
+
+  final bool enabled;
+  final String? hintText;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DropdownButtonFormField<String>(
+      value: ref.watch(searchBrandProvider),
+      items: kCarBrandsCatalog
+          .map(
+            (brand) => DropdownMenuItem(
+              value: brand.storageLabel,
+              child: carBrandDropdownRow(brand),
+            ),
+          )
+          .toList(),
+      onChanged: enabled
+          ? (v) => ref.read(searchBrandProvider.notifier).state = v
+          : null,
+      decoration: InputDecoration(
+        labelText: 'الماركة',
+        hintText: enabled ? null : hintText,
+        border: const OutlineInputBorder(),
+      ),
     );
   }
 }

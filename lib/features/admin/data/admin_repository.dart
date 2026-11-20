@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 
 class AdminRepository {
@@ -46,11 +45,19 @@ class AdminRepository {
     return response;
   }
 
-  /// تغيير حالة منتج
-  Future<void> updateProductStatus(String productId, String newStatus) async {
-    await _client
-        .from('products')
-        .update({'status': newStatus}).eq('id', productId);
+  /// تغيير حالة منتج (`suspension_source` يُمسح تلقائياً إلا عند التعليق).
+  Future<void> updateProductStatus(
+    String productId,
+    String newStatus, {
+    String? suspensionSource,
+  }) async {
+    final patch = <String, dynamic>{'status': newStatus};
+    if (newStatus == 'suspended') {
+      patch['suspension_source'] = suspensionSource ?? 'admin';
+    } else {
+      patch['suspension_source'] = null;
+    }
+    await _client.from('products').update(patch).eq('id', productId);
   }
 
   /// حذف منتج
@@ -65,8 +72,10 @@ class AdminRepository {
     final stats = {
       'pending': 0,
       'active': 0,
+      'approved': 0,
       'rejected': 0,
       'sold': 0,
+      'suspended': 0,
       'total': allProducts.length,
     };
 
@@ -107,7 +116,7 @@ class AdminRepository {
     int? yearTo,
     required List<File> images,
   }) async {
-    final adminId = _client.auth.currentUser!.id;
+    final adminId = SupabaseService.currentUserId!;
 
     // رفع الصور
     final imageUrls = <String>[];
@@ -143,5 +152,45 @@ class AdminRepository {
   /// جلب الأقسام
   Future<List<Map<String, dynamic>>> getCategories() async {
     return await _client.from('categories').select('id, name');
+  }
+
+  /// منتجات مروج محدد (للأدمن)
+  Future<List<Map<String, dynamic>>> getProductsByPromoter(String promoterId) async {
+    final response = await _client
+        .from('products')
+        .select('*')
+        .eq('promoter_id', promoterId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// تحديث تعليق الأدمن على منتج
+  Future<void> updateProductAdminComment(
+    String productId,
+    String? comment,
+  ) async {
+    final t = comment?.trim();
+    await _client.from('products').update({
+      'admin_comment': (t == null || t.isEmpty) ? null : t,
+    }).eq('id', productId);
+  }
+
+  /// موافقة تلقائية لمنتجات المروج الجديدة (عمود profiles + trigger في SQL)
+  Future<void> setPromoterAutoApprove(String promoterId, bool enabled) async {
+    await _client.from('profiles').update({
+      'auto_approve_products': enabled,
+    }).eq('id', promoterId);
+  }
+
+  Future<Map<String, dynamic>?> getProfile(String userId) async {
+    try {
+      return await _client
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+    } catch (_) {
+      return null;
+    }
   }
 }

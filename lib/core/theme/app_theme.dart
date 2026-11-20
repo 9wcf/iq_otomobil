@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:iq_otomobil/core/theme/app_colors.dart';
 
 class AppTheme {
-  static const _primary = Color(0xFF0F172A);
-  static const _accent = Color(0xFF3B82F6);
-  static const _surface = Color(0xFFF8FAFC);
-  static const _cardBg = Colors.white;
-
   static ThemeData light = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    scaffoldBackgroundColor: AppColors.background,
     colorScheme: ColorScheme.light(
-      primary: _primary,
-      secondary: _accent,
-      surface: _surface,
+      primary: AppColors.primary,
+      secondary: AppColors.accent,
+      surface: AppColors.background,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
-      onSurface: const Color(0xFF1E293B),
+      onSurface: AppColors.textPrimary,
     ),
     fontFamily: GoogleFonts.tajawal().fontFamily,
-    textTheme: GoogleFonts.tajawalTextTheme(),
-
-    // حقول إدخال عصرية
+    textTheme: GoogleFonts.tajawalTextTheme().apply(
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFF1F5F9),
+      fillColor: AppColors.inputFill,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -36,16 +34,16 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _accent, width: 2),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
       labelStyle: const TextStyle(
-          fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+        fontWeight: FontWeight.w500,
+        color: AppColors.textSecondary,
+      ),
     ),
-
-    // أزرار متدرجة واحترافية
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: _accent,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -54,43 +52,53 @@ class AppTheme {
         elevation: 0,
       ),
     ),
-
-    // بطاقات ناعمة
-    cardTheme: CardThemeData(
-      elevation: 0,
-      color: _cardBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
     ),
-
+    cardTheme: CardThemeData(
+      elevation: 0,
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.border, width: 1),
+      ),
+    ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.background,
       elevation: 0,
       centerTitle: true,
-      iconTheme: IconThemeData(color: _primary),
+      foregroundColor: AppColors.textPrimary,
+      iconTheme: IconThemeData(color: AppColors.primary),
       titleTextStyle: TextStyle(
         fontFamily: 'Tajawal',
         fontSize: 20,
         fontWeight: FontWeight.w800,
-        color: _primary,
+        color: AppColors.textPrimary,
       ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.card,
+      indicatorColor: AppColors.primary.withValues(alpha: 0.15),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          color: selected ? AppColors.primary : AppColors.textSecondary,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          fontSize: 12,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? AppColors.primary : AppColors.textSecondary,
+          size: selected ? 28 : 24,
+        );
+      }),
     ),
   );
 
-  static ThemeData dark = ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
-      primary: _accent,
-      secondary: _primary,
-      surface: const Color(0xFF0F172A),
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-      onSurface: Colors.white,
-    ),
-    fontFamily: GoogleFonts.tajawal().fontFamily,
-    textTheme: GoogleFonts.tajawalTextTheme(),
-  );
+  static ThemeData dark = light;
 }

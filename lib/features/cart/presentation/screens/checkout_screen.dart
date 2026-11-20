@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iq_otomobil/core/utils/money_iqd.dart';
+import 'package:iq_otomobil/features/catalog/data/product_display_utils.dart';
+import 'package:iq_otomobil/features/cart/presentation/providers/cart_provider.dart';
+import 'package:iq_otomobil/features/orders/presentation/providers/user_orders_badge_provider.dart';
+import 'package:iq_otomobil/core/theme/app_colors.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -29,14 +34,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _loadCartSummary() async {
-    final user = SupabaseService.client.auth.currentUser;
+    final user = SupabaseService.currentUserInfo;
     if (user == null) return;
 
     try {
       final res = await SupabaseService.client
           .from('cart_items')
           .select(
-              'id, quantity, products(id, model, price, promoter_id, images)')
+              'id, quantity, products(id, model, piece_name, price, promoter_id, images)')
           .eq('user_id', user.id);
 
       double total = 0.0;
@@ -62,7 +67,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_cartItems.isEmpty) return;
 
-    final user = SupabaseService.client.auth.currentUser;
+    final user = SupabaseService.currentUserInfo;
     if (user == null) return;
 
     setState(() => _isLoading = true);
@@ -104,16 +109,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await supabase.from('notifications').insert({
         'user_id': _promoterId,
         'title': '📦 طلب جديد وارد!',
-        'message':
-            'طلب بقيمة \$${_totalPrice.toStringAsFixed(2)} بانتظار موافقتك.',
-        'type': 'order',
-      });
-
-      // 5. إشعار للمستخدم (تأكيد الاستلام)
-      await supabase.from('notifications').insert({
-        'user_id': user.id,
-        'title': '✅ تم استلام طلبك',
-        'message': 'جاري مراجعة طلبك من قبل المروج. سنبلغك فور الموافقة.',
+        'message': 'طلب بقيمة ${formatIQD(_totalPrice)} بانتظار موافقتك.',
         'type': 'order',
       });
 
@@ -123,7 +119,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               content: Text('🎉 تم تأكيد الطلب بنجاح!'),
               backgroundColor: Colors.green),
         );
-        context.go('/account'); // أو صفحة التتبع لاحقاً
+        try {
+          final container = ProviderScope.containerOf(context, listen: false);
+          container.read(cartCountNotifierProvider.notifier).reload();
+          container.invalidate(userActiveOrdersCountProvider);
+        } catch (_) {}
+        context.go('/');
       }
     } catch (e) {
       print('❌ خطأ في إتمام الطلب: $e');
@@ -141,23 +142,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = SupabaseService.client.auth.currentUser;
+    final user = SupabaseService.currentUserInfo;
     if (user == null) {
       Future.microtask(() => context.go('/auth'));
       return const Scaffold(
-          backgroundColor: Color(0xFF0F172A),
-          body: Center(child: CircularProgressIndicator(color: Colors.blue)));
+          backgroundColor: AppColors.background,
+          body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.background,
         title: const Text('إتمام الطلب',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.blue))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Form(
@@ -169,21 +170,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
+                          color: AppColors.card,
                           borderRadius: BorderRadius.circular(16),
                           border:
-                              Border.all(color: Colors.blue.withOpacity(0.3))),
+                              Border.all(color: AppColors.border)),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('📋 ملخص الطلب',
                               style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold)),
                           const SizedBox(height: 12),
                           ..._cartItems.map((item) {
-                            final product = item['products'] as Map?;
+                            final productRaw = item['products'];
+                            final titleLine = productRaw is Map
+                                ? productDisplayTitle(
+                                    Map<String, dynamic>.from(productRaw))
+                                : 'منتج';
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
@@ -192,11 +197,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 children: [
                                   Expanded(
                                       child: Text(
-                                          '${product?['model'] ?? 'منتج'} (x${item['quantity']})',
-                                          style: const TextStyle(
+                                          '$titleLine (x${item['quantity']})',
+                                          style: TextStyle(
                                               color: Colors.grey[300]))),
                                   Text(
-                                      '\$${((product?['price'] as num?) ?? 0) * (item['quantity'] as num)}',
+                                      formatIQD(
+                                        ((((productRaw is Map
+                                                        ? productRaw['price']
+                                                        : null) as num?) ??
+                                                    0) *
+                                                (item['quantity'] as num))
+                                            .toDouble(),
+                                      ),
                                       style: const TextStyle(
                                           color: Colors.green,
                                           fontWeight: FontWeight.bold)),
@@ -210,12 +222,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             children: [
                               const Text('المجموع الكلي',
                                   style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold)),
-                              Text('\$${_totalPrice.toStringAsFixed(2)}',
+                              Text(formatIQD(_totalPrice),
                                   style: const TextStyle(
-                                      color: Colors.blue,
+                                      color: AppColors.primary,
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold)),
                             ],
@@ -227,19 +239,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const SizedBox(height: 24),
                     const Text('📍 معلومات التوصيل',
                         style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
 
                     TextFormField(
                       controller: _addressCtrl,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'عنوان التوصيل الكامل',
                         labelStyle: TextStyle(color: Colors.grey[400]),
                         prefixIcon:
-                            const Icon(Icons.location_on, color: Colors.blue),
+                            const Icon(Icons.location_on, color: AppColors.primary),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
@@ -251,7 +263,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     TextFormField(
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'رقم الهاتف',
                         labelStyle: TextStyle(color: Colors.grey[400]),
@@ -269,7 +281,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     TextFormField(
                       controller: _notesCtrl,
                       maxLines: 3,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
                         labelText: 'ملاحظات إضافية (اختياري)',
                         labelStyle: TextStyle(color: Colors.grey[400]),
@@ -290,7 +302,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             style: TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[700],
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),

@@ -1,6 +1,5 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:iq_otomobil/core/config/app_config.dart';
+
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 
 class PlateRepository {
@@ -13,7 +12,19 @@ class PlateRepository {
       .eq('status', 'approved')
       .order('created_at', ascending: false);
 
-  /// إرسال لوحة جديدة (نموذج)
+  /// رفع صورة اللوحة — نفس bucket المنتجات لتفادي إعداد تخزين إضافي
+  Future<String> _uploadPlateImage(File file, int index) async {
+    final bytes = await file.readAsBytes();
+    final ext = file.path.split('.').last.toLowerCase();
+    final safeExt = ext.length <= 5 ? ext : 'jpg';
+    final uid = SupabaseService.currentUserId ?? 'guest';
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final path = 'car_plates/$uid/${ts}_$index.$safeExt';
+    await _client.storage.from('products').uploadBinary(path, bytes);
+    return _client.storage.from('products').getPublicUrl(path);
+  }
+
+  /// إرسال لوحة جديدة → تنتظر موافقة الأدمن (status: pending)
   Future<void> submitPlate({
     required String plateNumber,
     required String plateType,
@@ -24,14 +35,10 @@ class PlateRepository {
     String? sellerName,
     List<File>? images,
   }) async {
-    List<String> imageUrls = [];
-
+    final imageUrls = <String>[];
     if (images != null && images.isNotEmpty) {
-      for (int i = 0; i < images.length; i++) {
-        final ext = images[i].path.split('.').last;
-        final path = 'plates/${DateTime.now().millisecondsSinceEpoch}_$i.$ext';
-        await _client.storage.from('plates').upload(path, images[i]);
-        imageUrls.add(_client.storage.from('plates').getPublicUrl(path));
+      for (var i = 0; i < images.length; i++) {
+        imageUrls.add(await _uploadPlateImage(images[i], i));
       }
     }
 
@@ -45,27 +52,8 @@ class PlateRepository {
       'seller_name': sellerName,
       'status': 'pending',
       'images': imageUrls,
+      // يجب أن تطابق قيم check constraint car_plates_submitted_via_check في Supabase
       'submitted_via': 'form',
     });
-  }
-
-  /// إنشاء رابط واتساب للإرسال
-  String createWhatsAppLink({
-    required String plateNumber,
-    required String sellerPhone,
-    String? description,
-    double? price,
-  }) {
-    final message = '''
-🚗 *طلب بيع لوحة سيارات*
-
-📋 *رقم اللوحة:* $plateNumber
-📱 *هاتف البائع:* $sellerPhone
-💰 *السعر:* ${price != null ? '${price.toString()} دولار' : 'حسب الاتفاق'}
-📝 *الوصف:* ${description ?? 'لا يوجد'}
-
-أرسلت عبر تطبيق IQ OTOMBIL
-''';
-    return 'https://wa.me/${AppConfig.ownerWhatsAppNumber}?text=${Uri.encodeComponent(message)}';
   }
 }

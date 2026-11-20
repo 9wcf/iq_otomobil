@@ -1,4 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
 
 class CartRepository {
@@ -7,19 +6,25 @@ class CartRepository {
   Future<List<Map<String, dynamic>>> getCartWithProducts() => _client
       .from('cart_items')
       .select('*, products(*, car_brands(name), categories(name))')
-      .eq('user_id', _client.auth.currentUser!.id);
+      .eq('user_id', SupabaseService.currentUserId!);
 
+  /// مجموع **الكميات** في السلة (نفس منطق badge الشاشة الرئيسية).
   Future<int> getCartCount() async {
+    final uid = SupabaseService.currentUserId;
+    if (uid == null) return 0;
     final res = await _client
         .from('cart_items')
-        .select('id')
-        .eq('user_id', _client.auth.currentUser!.id);
-    return res.length;
+        .select('quantity')
+        .eq('user_id', uid);
+    return res.fold<int>(
+      0,
+      (sum, item) => sum + ((item['quantity'] as num?)?.toInt() ?? 1),
+    );
   }
 
   Future<void> addToCart(String productId, int quantity) =>
       _client.from('cart_items').upsert({
-        'user_id': _client.auth.currentUser!.id,
+        'user_id': SupabaseService.currentUserId!,
         'product_id': productId,
         'quantity': quantity
       }, onConflict: 'user_id,product_id');
@@ -29,5 +34,5 @@ class CartRepository {
   Future<void> clearCart() => _client
       .from('cart_items')
       .delete()
-      .eq('user_id', _client.auth.currentUser!.id);
+      .eq('user_id', SupabaseService.currentUserId!);
 }

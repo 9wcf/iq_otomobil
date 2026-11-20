@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:iq_otomobil/core/services/supabase_service.dart';
+import 'package:iq_otomobil/core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iq_otomobil/features/catalog/data/product_display_utils.dart';
 
 class MyReviewsScreen extends StatefulWidget {
   const MyReviewsScreen({super.key});
@@ -22,7 +22,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
   }
 
   Future<void> _loadMyReviews() async {
-    final user = SupabaseService.client.auth.currentUser;
+    final user = SupabaseService.currentUserInfo;
     if (user == null) return;
 
     setState(() => _isLoading = true);
@@ -30,7 +30,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
     try {
       final response = await SupabaseService.client
           .from('reviews')
-          .select('*, products(model, images)')
+          .select('*, products(model, piece_name, images)')
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
 
@@ -47,9 +47,9 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.background,
         title: const Text('تقييماتي', style: TextStyle(color: Colors.white)),
         actions: [
           IconButton(
@@ -113,7 +113,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.amber.withOpacity(0.3)),
       ),
@@ -148,7 +148,11 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(product?['model'] ?? 'منتج',
+                    Text(
+                        product != null
+                            ? productDisplayTitle(
+                                Map<String, dynamic>.from(product))
+                            : 'منتج',
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -196,78 +200,102 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
   }
 
   Future<void> _editReview(Map<String, dynamic> review) async {
+    final reviewId = review['id'].toString();
+    var rating = (review['rating'] as int?) ?? 0;
     final commentCtrl =
-        TextEditingController(text: review['comment'] as String? ?? '');
-    double rating = (review['rating'] as num).toDouble();
+        TextEditingController(text: (review['comment'] as String?) ?? '');
+    var isSaving = false;
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.card,
           title: const Text('تعديل التقييم',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: Colors.white, fontSize: 18)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RatingBar.builder(
-                initialRating: rating,
-                minRating: 1,
-                itemCount: 5,
-                itemBuilder: (_, __) =>
-                    const Icon(Icons.star, color: Colors.amber),
-                onRatingUpdate: (r) => setDialogState(() => rating = r),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  5,
+                  (i) => IconButton(
+                    onPressed: isSaving
+                        ? null
+                        : () => setDialogState(() => rating = i + 1),
+                    icon: Icon(i < rating ? Icons.star : Icons.star_border,
+                        color: Colors.amber),
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               TextField(
                 controller: commentCtrl,
+                enabled: !isSaving,
                 maxLines: 3,
+                maxLength: 500,
                 style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'اكتب تعليقك...',
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                decoration: const InputDecoration(
+                  hintText: 'اكتب تعليقك',
+                  hintStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
                 ),
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed:
+                  isSaving ? null : () => Navigator.of(dialogCtx).pop(false),
               child: const Text('إلغاء'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[700]),
-              child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (rating < 1) return;
+                      setDialogState(() => isSaving = true);
+                      try {
+                        await SupabaseService.client.from('reviews').update({
+                          'rating': rating,
+                          'comment': commentCtrl.text.trim().isEmpty
+                              ? null
+                              : commentCtrl.text.trim(),
+                        }).eq('id', reviewId);
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop(true);
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSaving = false);
+                        if (dialogCtx.mounted) {
+                          ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                            SnackBar(
+                                content: Text('❌ خطأ في الحفظ: $e'),
+                                backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('حفظ'),
             ),
           ],
         ),
       ),
     );
 
-    if (saved != true) return;
-
-    try {
-      await SupabaseService.client
-          .from('reviews')
-          .update({'rating': rating, 'comment': commentCtrl.text})
-          .eq('id', review['id']);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحديث التقييم بنجاح')),
-        );
-        _loadMyReviews();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في التحديث: $e')),
-        );
-      }
+    commentCtrl.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('✅ تم تحديث التقييم'), backgroundColor: Colors.green),
+      );
+      _loadMyReviews();
     }
   }
 

@@ -3,11 +3,21 @@ import '../../data/ad_repository.dart';
 
 final adRepoProvider = Provider((ref) => AdRepository());
 
-final homeTopAdsProvider = FutureProvider.autoDispose(
-    (ref) => ref.watch(adRepoProvider).getActiveAds(position: 'home_top'));
+final homeBannerAdsProvider = FutureProvider.autoDispose(
+  (ref) {
+    ref.keepAlive();
+    return ref
+        .watch(adRepoProvider)
+        .getActiveAds(position: AdRepository.kHomeBannerPosition);
+  },
+);
 
-final homeBottomAdsProvider = FutureProvider.autoDispose(
-    (ref) => ref.watch(adRepoProvider).getActiveAds(position: 'home_bottom'));
+final bannerIntervalSecondsProvider = FutureProvider.autoDispose(
+  (ref) {
+    ref.keepAlive();
+    return ref.watch(adRepoProvider).getBannerIntervalSeconds();
+  },
+);
 
 class AdActionNotifier extends StateNotifier<AsyncValue<void>> {
   final AdRepository _repo;
